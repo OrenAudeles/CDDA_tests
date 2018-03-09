@@ -1,0 +1,13 @@
+# no .a or .o files
+*.[oa]
+# no shell scripts
+*.sh
+# no temp files
+*~
+
+# ignore directories
+build/
+doc/
+bin/
+data/
+scripts/
