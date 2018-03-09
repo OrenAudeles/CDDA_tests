@@ -14,6 +14,8 @@ include_directories(
 
 set(SOURCES
     main.cpp
+
+    prng.c
 )
 set(TEST_SOURCES
     
