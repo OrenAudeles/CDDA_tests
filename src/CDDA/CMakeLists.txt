@@ -16,6 +16,7 @@ set(SOURCES
     main.cpp
 
     prng.c
+    split_mix64.c
 )
 set(TEST_SOURCES
     
