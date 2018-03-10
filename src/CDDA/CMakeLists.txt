@@ -17,6 +17,9 @@ set(SOURCES
 
     prng.c
     split_mix64.c
+    file.c
+    memory.c
+    murmur_hash.c
 )
 set(TEST_SOURCES
     
