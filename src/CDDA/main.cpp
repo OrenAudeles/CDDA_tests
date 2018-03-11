@@ -114,7 +114,7 @@ struct TorOffsetSite{
 	int32_t x, y;
 };
 
-RegionData create_region_data(xorshiro128plus& prng, TorSite** sites, color3** colors, uint32_t size, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t ox, uint32_t oy){
+RegionData create_region_data(xorshiro128plus& prng, TorSite** sites, uint32_t size, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t ox, uint32_t oy){
 	RegionData result = {0};
 	result.size = size;
 	result.first_site = array_size(*sites);
@@ -126,20 +126,12 @@ RegionData create_region_data(xorshiro128plus& prng, TorSite** sites, color3** c
 		new_site.y = wrap_range<uint32_t>(y, y + h, prng_next(&prng));
 
 		array_push(*sites, new_site);
-
-		color3 new_color = {0};
-		
-		new_color.c[0] = wrap_range<uint16_t>(64, 64 + 128, result.first_site + n);
-		new_color.c[1] = new_color.c[0];
-		new_color.c[2] = new_color.c[0];
-
-		array_push(*colors, new_color);
 	}
 
 	return result;
 }
 
-RegionData get_region_data_or_make(xorshiro128plus& prng, hash_t* region_store, RegionData** regions, RegionPoint rpt, TorSite** sites, color3** colors, uint32_t nsites, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t ox, uint32_t oy){
+RegionData get_region_data_or_make(xorshiro128plus& prng, hash_t* region_store, RegionData** regions, RegionPoint rpt, TorSite** sites, uint32_t nsites, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t ox, uint32_t oy){
 	RegionData result = {0};
 	
 	const uint64_t key = murmur_hash_64(&rpt, sizeof(RegionPoint), 0xFEDCBA9876543210);
@@ -147,7 +139,7 @@ RegionData get_region_data_or_make(xorshiro128plus& prng, hash_t* region_store, 
 	const uint64_t lookup_result = hash_lookup(region_store, key, (uint64_t)-1);
 	if (lookup_result == (uint64_t)-1){
 		printf("GetRegion: Creating Region Data for <%u, %u>\n", rpt.x, rpt.y);
-		result = create_region_data(prng, sites, colors, nsites, x, y, w, h, ox, oy);
+		result = create_region_data(prng, sites, nsites, x, y, w, h, ox, oy);
 		array_push(*regions, result);
 		hash_add(region_store, key, array_size(*regions) - 1);
 	}
@@ -179,6 +171,18 @@ void generate_region_image_data(image_blk& blk, VorDistFn dist, TorOffsetSite* s
 			*cur++ = colors[ids[get_nearest_site_index(sites, nSites, caller, x, y)]];
 		}
 		cur += blk.stride;
+	}
+}
+
+void generate_colors(color3** color, uint32_t nColors, xorshiro128plus prng){
+	for (uint32_t i = 0; i < nColors; ++i){
+		uint64_t rngval = prng_next(&prng);
+		color3 col;
+		col.c[0] = (rngval >> 0) & 0xFF;
+		col.c[1] = (rngval >> 8) & 0xFF;
+		col.c[2] = (rngval >> 16) & 0xFF;
+
+		array_push(*color, col);
 	}
 }
 
@@ -229,6 +233,13 @@ void torus_region(split_mixer head_mixer, const int split_factor, const int nSit
 	} hash_obj;
 	hash_obj.mixin = split_mix_next(&head_mixer);
 
+	{
+		auto mixer = split_mix_make(hash_obj.mixin);
+		auto color_prng = prng_make(split_mix_next(&mixer), split_mix_next(&mixer));
+
+		generate_colors(&colors, nSites, color_prng);
+	}
+
 	for (int y = 0; y < SITE_SPLIT_FACTOR; ++y){
 		rpt.y = y;
 		for (int x = 0; x < SITE_SPLIT_FACTOR; ++x){
@@ -255,7 +266,7 @@ void torus_region(split_mixer head_mixer, const int split_factor, const int nSit
 
 				// Get region data and insert ids into set
 				//rdata = get_region_data_or_make(region_prng, &regions, &region_data, lrpt, &sites, &colors, NSITE_PER_REGION, lrpt.x * MAX_COORD_REGION, lrpt.y * MAX_COORD_REGION, MAX_COORD_REGION, MAX_COORD_REGION);
-				rdata = get_region_data_or_make(region_prng, &regions, &region_data, lrpt, &sites, &colors, NSITE_PER_REGION, 0, 0, MAX_COORD_REGION, MAX_COORD_REGION, x * MAX_COORD_REGION, y * MAX_COORD_REGION);
+				rdata = get_region_data_or_make(region_prng, &regions, &region_data, lrpt, &sites, NSITE_PER_REGION, 0, 0, MAX_COORD_REGION, MAX_COORD_REGION, x * MAX_COORD_REGION, y * MAX_COORD_REGION);
 
 				// Push all IDs into iteration ids
 				for (uint32_t ndx = 0; ndx < rdata.size; ++ndx){
@@ -299,15 +310,8 @@ void torus_region(split_mixer head_mixer, const int split_factor, const int nSit
 		}
 	}
 
-
 	image_write(image, "./output/region_sqr_dist.pnm");
 	image_destroy(image);
-
-	(void)NSITE_PER_REGION;
-	(void)NSITE_PER_ITER;
-	(void)MAX_COORD_REGION;
-	(void)rpt;
-	(void)rdata;
 
 	hash_destroy(&regions);
 	array_free(sites);
