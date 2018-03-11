@@ -8,7 +8,7 @@
 
 
 typedef struct {
-	char type;
+	int type;
 	int start;
 	int size;
 } MemoryBlock;
@@ -24,6 +24,7 @@ typedef struct {
 	int count;
 
 	uint8_t* mem;
+	uint32_t max_used_memory;
 } MainMemory;
 
 static MainMemory _main_mem = {0};
@@ -37,6 +38,7 @@ static void consolidate_blocks(void);
 static void init_main_mem(void){
 	_main_mem.mem = NULL;
 	_main_mem.count = 0;
+	_main_mem.max_used_memory = 0;
 }
 
 void alloc_main_memory(int bytes){
@@ -52,7 +54,10 @@ void alloc_main_memory(int bytes){
 }
 void free_main_memory(void){
 	// Assertion to make sure that all memory has been freed from main memory
-	assert(_main_mem.count == 1 && _main_mem.block[0].type == FREE_BLOCK);
+	assert(_main_mem.count == 1);
+	assert(_main_mem.block[0].type == FREE_BLOCK);
+
+	printf("Most memory in use at once: %d Bytes\n", _main_mem.max_used_memory);
 
 	free(_main_mem.mem);
 	init_main_mem();
@@ -186,6 +191,17 @@ static void* realloc_block(void* old, int new_size){
 }
 // Very very aggressive 'garbage collection'
 static void consolidate_blocks(void){
+	// Before consolidating, check high water mark
+	uint32_t cur_used = 0;
+	for (int i = 0; i < _main_mem.count; ++i){
+		if (_main_mem.block[i].type == USED_BLOCK){
+			cur_used += _main_mem.block[i].size;
+		}
+	}
+	if (cur_used > _main_mem.max_used_memory){
+		_main_mem.max_used_memory = cur_used;
+	}
+
 	// Try to consolidate blocks until there are no more blocks able to be
 	// consolidated...
 	int consolidation = 1;
@@ -213,6 +229,19 @@ static void consolidate_blocks(void){
 				continue;
 			}
 			++i;
+		}
+	}
+	if (0){
+		char type_key[3];
+		type_key[NULL_BLOCK] = 'N';
+		type_key[FREE_BLOCK] = 'F';
+		type_key[USED_BLOCK] = 'U';
+
+		printf("Blocks post-Consolidation: %d\n", _main_mem.count);
+		for (int i = 0; i < _main_mem.count; ++i){
+			MemoryBlock iblk = _main_mem.block[i];
+
+			printf("-[%2d] <%p - %p> [%c] (%d)\n", i, (void*)(_main_mem.mem + iblk.start), (void*)(_main_mem.mem + iblk.start + iblk.size), type_key[iblk.type], iblk.size);
 		}
 	}
 }

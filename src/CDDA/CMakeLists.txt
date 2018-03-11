@@ -20,6 +20,7 @@ set(SOURCES
     file.c
     memory.c
     murmur_hash.c
+    hash.c
 )
 set(TEST_SOURCES
     
