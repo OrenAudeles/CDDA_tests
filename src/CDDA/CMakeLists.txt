@@ -23,7 +23,7 @@ add_executable(${PROJ} ${SOURCES} ${TEST_SOURCES})
 add_executable(${PROJ_DEBUG} ${SOURCES} ${TEST_SOURCES})
 
 set(PROJ_LIBS
-   
+   curses
 )
 set(PROJ_DEBUG_LIBS
     ${PROJ_LIBS}
