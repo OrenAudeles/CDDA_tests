@@ -493,8 +493,8 @@ int main(const int argc, const char** argv){
 
 	keypad(initscr(), 1);
 	curs_set(0);
-	timeout(100);
-	//timeout(-1);
+	//timeout(100);
+	timeout(-1);
 	noecho();
 	// ncurses mouse registration
     set_mouse_mask();
@@ -645,6 +645,16 @@ void mouse_button_down_event(int button){
 	mouse_events.push_back(ev);
 }
 
+// Forces a refresh by adding a KEY_MOUSE event
+// that does extremely little
+void fake_event(int x, int y, int z){
+	push_log("+FAKE <%d, %d, %d>", x, y, z);
+	MEVENT event;
+	event.x = x; event.y = y; event.z = z;
+	event.bstate = REPORT_MOUSE_POSITION;
+	ungetmouse(&event);
+}
+
 void generate_mouse_events(MEVENT event){
 	//push_log("MOUSE_MOVE: %d, %d", event.x, event.y);
 	//mouse_move_event(event.x, event.y);
@@ -668,6 +678,8 @@ void generate_mouse_events(MEVENT event){
 		//push_log("MOUSE_BUTTON(%d) RELEASE", MB_LEFT);
 		++button_ev_result;
 		mouse_button_up_event(MB_LEFT);
+
+		fake_event(event.x, event.y, event.z);
 	}
 
     if (BUTTON_PRESS(event.bstate, 3) | BUTTON_CLICK(event.bstate, 3)){
@@ -679,6 +691,8 @@ void generate_mouse_events(MEVENT event){
         //push_log("MOUSE_BUTTON(%d) RELEASE", MB_RIGHT);
         ++button_ev_result;
         mouse_button_up_event(MB_RIGHT);
+
+        fake_event(event.x, event.y, event.z);
     }
 
 	if (event.bstate & REPORT_MOUSE_POSITION){
