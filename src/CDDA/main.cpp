@@ -492,15 +492,15 @@ int main(const int argc, const char** argv){
 	init_main_menu_options();
 
 	keypad(initscr(), 1);
+    set_mouse_mask();
+    enable_mouse_tracking();
 	curs_set(0);
 	//timeout(100);
 	timeout(-1);
 	noecho();
 	// ncurses mouse registration
-    set_mouse_mask();
     init_mouse_functions();
-    mouseinterval(10);
-    enable_mouse_tracking();
+    mouseinterval(50);
 
     // {
     // 	int x = 0, y = 0;
