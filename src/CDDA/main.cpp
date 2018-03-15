@@ -324,7 +324,7 @@ bool button(int x, int y, int w, int h){
         }
     }
     if (is_hover(self)){
-        if (mouse_down(MB_LEFT)){
+        if (mouse_down_this_frame(MB_LEFT)){
             set_active(self);
         }
     }
@@ -493,14 +493,20 @@ int main(const int argc, const char** argv){
 
 	keypad(initscr(), 1);
 	curs_set(0);
-	//timeout(50);
-	timeout(-1);
+	timeout(100);
+	//timeout(-1);
 	noecho();
 	// ncurses mouse registration
     set_mouse_mask();
     init_mouse_functions();
-    mouseinterval(0);
+    mouseinterval(10);
     enable_mouse_tracking();
+
+    // {
+    // 	int x = 0, y = 0;
+    // 	getyx(curscr, y, x);
+    // 	push_log("Startup Cursor Position: %d, %d", x, y);
+    // }
 
 	int c = 0;
 
@@ -535,7 +541,7 @@ int main(const int argc, const char** argv){
 			}
 		}
 
-		push_log("kb_hit: unbound input (%d)", c);
+		//push_log("kb_hit: unbound input (%d)", c);
 	};
 
 	display_domains.push_back(display_main_menu);
@@ -548,6 +554,14 @@ int main(const int argc, const char** argv){
 		display_domains[domain_stack[cur_domain-1]]();
 		//display_domains[domain_stack[cur_domain-1]]();
 	};
+
+	//int ungetmouse(MEVENT *event);
+	// {
+	// 	MEVENT event;
+	// 	event.x = event.y = event.z = 0;
+	// 	event.bstate = REPORT_MOUSE_POSITION;
+	// 	ungetmouse(&event);
+	// }
 
 	ui_render();
 	display_frame_data();
@@ -567,32 +581,10 @@ int main(const int argc, const char** argv){
 		// poll
 		c = getch();
 		kb_hit(c, 0);
-
-		// simulate
-
-
-		// req_refresh = 1;
-		// // test for key hit
-		// if (cur_domain > 0){
-		// 	//push_log("Await: %d", cur_domain);
-		// 	c = getch();
-		// 	kb_hit(c, 0);
-		// }
-		// else{
-		// 	push_log("Exiting main loop");
-		// }
-		// // Render what we have
-		// if (req_refresh){
-		// 	render();
-		// 	req_refresh = 0;
-		// }
-		
 	}while(cur_domain > 0);
 
-	render();
-
-	auto endwin_result = endwin();
 	disable_mouse_tracking();
+	auto endwin_result = endwin();
 	
 	destroy_layers();
 	dump_log();
@@ -665,6 +657,7 @@ void generate_mouse_events(MEVENT event){
 // #define	BUTTON_DOUBLE_CLICK(e, x)	((e) & NCURSES_MOUSE_MASK(x, 010))
 // #define	BUTTON_TRIPLE_CLICK(e, x)	((e) & NCURSES_MOUSE_MASK(x, 020))
 // #define	BUTTON_RESERVED_EVENT(e, x)	((e) & NCURSES_MOUSE_MASK(x, 040))
+	mouse_move_event(event.x, event.y);
 
 	if (BUTTON_PRESS(event.bstate, 1) | BUTTON_CLICK(event.bstate, 1)){
 		//push_log("MOUSE_BUTTON(%d) CLICK", MB_LEFT);
@@ -690,7 +683,6 @@ void generate_mouse_events(MEVENT event){
 
 	if (event.bstate & REPORT_MOUSE_POSITION){
 		++button_ev_result;
-		mouse_move_event(event.x, event.y);
 	}
 
 	if (button_ev_result == 0){
