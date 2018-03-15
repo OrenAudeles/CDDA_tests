@@ -20,7 +20,34 @@ struct term_data{
 	uint16_t layers;
 };
 
+enum mouse_button_state{
+	MB_UP = 0,
+	MB_CLICK,
+	MB_DOWN
+};
+enum mouse_button_id{
+	MB_LEFT = 0,
+	MB_RIGHT = 1,
+	NUM_MOUSE_BUTTONS
+};
+
+struct mouse_interact_data{
+	mouse_button_state button[NUM_MOUSE_BUTTONS];
+
+	int16_t cx, cy;
+};
+
 term_data tdata;
+mouse_interact_data mdata;
+
+#define IN_RANGE(a, b, v) ((((v)-(a)) >= 0) - (((v)-(b)) < 0))
+
+bool mouse_in_region(int x, int y, int w, int h){
+	bool ix = 0 == IN_RANGE(x, x+w, mdata.cx);
+	bool iy = 0 == IN_RANGE(y, y+h, mdata.cy);
+
+	return ix & iy;
+}
 
 typedef std::vector<curses_draw_cmd> draw_layer;
 draw_layer* layers = nullptr;
@@ -125,7 +152,7 @@ int main_menu_options_len[n_main_menu_options];
 callback_t main_menu_option_cb[n_main_menu_options];
 
 struct log_item{
-	char message[40];
+	char message[80];
 };
 std::vector<log_item> log;
 
@@ -134,7 +161,7 @@ void push_log(const char* message, ...){
 
 	va_list arg;
 	va_start(arg, message);
-	vsnprintf(item.message, 40, message, arg);
+	vsnprintf(item.message, 80, message, arg);
 	va_end(arg);
 
 	log.push_back(item);
@@ -183,6 +210,103 @@ void init_main_menu_options(void){
 	};
 }
 
+struct {
+	int32_t next, active;
+	int32_t hover, next_hover;
+	int32_t active_layer, next_hover_layer;
+} ui_data;
+
+int32_t get_next(void){
+	return ++ui_data.next;
+}
+bool is_active(int32_t id){
+	return ui_data.active == id;
+}
+bool is_hover(int32_t id){
+	return (id > 0) && (ui_data.hover == id);
+}
+void set_active(int32_t id){
+	ui_data.active = id;
+}
+void set_inactive(void){
+	ui_data.active = 0;
+}
+void set_hover(int32_t id){
+	ui_data.hover = id;
+}
+void set_next_hover(int32_t id){
+	if (ui_data.next_hover_layer <= ui_data.active_layer){
+		ui_data.next_hover = id;
+		ui_data.next_hover_layer = ui_data.active_layer;
+	}
+}
+bool mouse_state_eq(int button, mouse_button_state state){
+	return mdata.button[button] == state;
+}
+
+void prepare_ui_frame(void){
+	ui_data.next = 0;
+	ui_data.next_hover = 0;
+	ui_data.next_hover_layer = 0;
+	ui_data.active_layer = 0;
+}
+void complete_ui_frame(void){
+	set_hover(ui_data.next_hover);
+
+	switch(mdata.button[MB_LEFT]){
+		case MB_UP:{ set_active(0); break; }
+		case MB_CLICK:{ mdata.button[MB_LEFT] = MB_DOWN; }
+		case MB_DOWN:{
+			if (is_active(0)){
+				set_active(-1);
+			}
+			break;
+		}
+	}
+
+	switch(mdata.button[MB_RIGHT]){
+		case MB_UP:{ break; }
+		case MB_CLICK:{ mdata.button[MB_RIGHT] = MB_DOWN; }
+		case MB_DOWN:{ break; }
+	}
+}
+
+// Assumes left-click presses buttons
+bool button(int x, int y, int w, int h){
+	auto self = get_next();
+
+	bool result = false;
+
+	if (is_active(self)){
+		push_log("Button <%d>:", self);
+		push_log(": Active");
+		if (mouse_state_eq(0, MB_UP)){
+			push_log("  : Released");
+			if (is_hover(self)){
+				push_log("    : Activating");
+				result = true;
+			}
+			set_inactive();
+		}
+	}
+	if (is_hover(self)){
+		push_log("Button <%d>:", self);
+		push_log(": Hovering");
+		if (mouse_state_eq(0, MB_CLICK)){
+			push_log("  : Making Active");
+			set_active(self);
+		}
+	}
+
+	if (mouse_in_region(x, y, w, h)){
+		push_log("Button <%d>:", self);
+		push_log(": Setting Hover");
+		set_next_hover(self);
+	}
+
+	return result;
+}
+
 void display_main_menu(void){
 	const int layer = 0;
 
@@ -195,13 +319,24 @@ void display_main_menu(void){
 	char select_close = ']';
 
 	int selected;
+	int printed;
 
 	for (int i = 0; i < n_main_menu_options; ++i){
 		selected = (main_menu_option == i);
 
 		print_layer(layer, x, y, &select_open, selected);
 		++x;
-		x += print_layer(layer, x, y, main_menu_options[i], main_menu_options_len[i]);
+		printed = print_layer(layer, x, y, main_menu_options[i], main_menu_options_len[i]);
+
+		if (button(x, y, printed, 1)){
+			// force selection
+			main_menu_option = i;
+
+			// call selectionm
+			main_sel_sel(0);
+		}
+
+		x += printed;
 		print_layer(layer, x, y, &select_close, selected);
 		++x;
 
@@ -211,14 +346,44 @@ void display_main_menu(void){
 int running;
 int frames;
 
-void display_frame_count(void){
+void display_frame_data(void){
 	char buf[80];
-	int buf_len = snprintf(buf, 80, "%d", frames);
+	int buf_len = snprintf(buf, 80, "%d : %d <%d, %d, n%d> [%d, %d]", frames, main_menu_option, ui_data.active, ui_data.hover, ui_data.next, mdata.cx, mdata.cy);
 
 	print_layer(1, 2, tdata.ty - 1, buf, buf_len);
+
+}
+
+void set_mouse_mask(void){
+	mmask_t mask =
+		BUTTON1_PRESSED | BUTTON1_RELEASED | BUTTON1_CLICKED |
+		//BUTTON3_PRESSED | BUTTON3_RELEASED | BUTTON3_CLICKED |
+		REPORT_MOUSE_POSITION;
+
+	mousemask(mask, NULL);
+}
+
+void dump_mouse_api(void){
+	#define DATA(x) #x
+	const char* api_text[28] = {
+		#include "api_dat.h"
+	};
+	#undef DATA
+	#define DATA(x) x
+	const int api_val[28] = {
+		#include "api_dat.h"
+	};
+	#undef DATA
+
+	push_log("MOUSE API VALUES:");
+	for (int i = 0; i < 28; ++i){
+		push_log(" [%2d] %*.*s %d", i, 30, 30, api_text[i], api_val[i]);
+	}
 }
 
 int main(const int argc, const char** argv){
+	push_log("NCurses Mouse API V%d", NCURSES_MOUSE_VERSION);
+	dump_mouse_api();
 	frames = 0;
 
 	tdata.tx = 120;
@@ -230,10 +395,11 @@ int main(const int argc, const char** argv){
 
 	keypad(initscr(), 1);
 	curs_set(0);
+	//timeout(50);
 	timeout(-1);
 	noecho();
 	// ncurses mouse registration
-    mousemask( BUTTON1_CLICKED | BUTTON3_CLICKED | REPORT_MOUSE_POSITION, NULL );
+    set_mouse_mask();
 
 	int c = 0;
 
@@ -273,20 +439,23 @@ int main(const int argc, const char** argv){
 	push_domain(0);
 
 	do{
+		prepare_ui_frame();
 		++frames;
 		// Prepare for display
 		clear_layers();
 		// Send in render commands
 		fill_layer(0, '#');
 		display_domains[domain_stack[cur_domain-1]]();
+		display_frame_data();
 
-		display_frame_count();
-
+		complete_ui_frame();
 		// Render what we have
 		render();
+		
 		// test for key hit
 		c = getch();
 		kb_hit(c, 0);
+		
 	}while(cur_domain > 0);
 
 	auto endwin_result = endwin();
@@ -314,50 +483,87 @@ KB_FUNC(exit){
 KB_FUNC(resize){
 	push_log("Resizing!");
 }
-KB_FUNC(mouse_action){
-	push_log("Mouse Action!");
-	MEVENT event;
-	if (getmouse(&event) == OK){
-		auto x = event.x;
-		auto y = event.y;
 
-		const char* str = [](MEVENT event){
-			if (event.bstate & BUTTON1_CLICKED){
-				return "BUTTON LEFT";
-			}
-			else if (event.bstate & BUTTON3_CLICKED){
-				return "BUTTON RIGHT";
-			}
-			else if (event.bstate & REPORT_MOUSE_POSITION){
-				return "MOUSE MOVE";
-			}
+bool mouse_event_test(mmask_t bstate, mmask_t test){
+	return bstate & test;
+}
 
-			return "UNKNOWN";
-		}(event);
+void set_mouse_data(int button, int x, int y, mouse_button_state state){
+	push_log(": Update Mouse UI State <%d = %d @ %d, %d>", button, state, x, y);
+	mdata.button[button] = state;
+	mdata.cx = x;
+	mdata.cy = y;
+}
 
-		push_log(": %s at <%d, %d>", str, x, y);
+void generate_mouse_events(MEVENT event){
+	push_log("MOUSE_MOVE: %d, %d", event.x, event.y);
+	int button_ev_result = 0;
+/* macros to extract single event-bits from masks */
+// #define	BUTTON_RELEASE(e, x)		((e) & NCURSES_MOUSE_MASK(x, 001))
+// #define	BUTTON_PRESS(e, x)		((e) & NCURSES_MOUSE_MASK(x, 002))
+// #define	BUTTON_CLICK(e, x)		((e) & NCURSES_MOUSE_MASK(x, 004))
+// #define	BUTTON_DOUBLE_CLICK(e, x)	((e) & NCURSES_MOUSE_MASK(x, 010))
+// #define	BUTTON_TRIPLE_CLICK(e, x)	((e) & NCURSES_MOUSE_MASK(x, 020))
+// #define	BUTTON_RESERVED_EVENT(e, x)	((e) & NCURSES_MOUSE_MASK(x, 040))
+
+	if (BUTTON_PRESS(event.bstate, 1) | BUTTON_CLICK(event.bstate, 1)){
+		push_log("MOUSE_BUTTON(%d) CLICK", MB_LEFT);
+		++button_ev_result;
+	}
+	if (BUTTON_RELEASE(event.bstate, 1) | BUTTON_CLICK(event.bstate, 1)){
+		push_log("MOUSE_BUTTON(%d) RELEASE", MB_LEFT);
+		++button_ev_result;
+	}
+
+	// switch(event.bstate){
+	// 	case BUTTON1_PRESSED:
+	// 	case BUTTON1_CLICKED:{
+	// 		push_log("MOUSE_BUTTON(%d) CLICK", MB_LEFT);
+	// 		++button_ev_result;
+	// 		break;
+	// 	}
+	// 	case BUTTON3_PRESSED:
+	// 	case BUTTON3_CLICKED:{
+	// 		push_log("MOUSE_BUTTON(%d) CLICK", MB_RIGHT);
+	// 		++button_ev_result;
+	// 		break;
+	// 	}
+	// }
+
+	// switch(event.bstate){
+	// 	case BUTTON1_RELEASED:
+	// 	case BUTTON1_CLICKED:{
+	// 		push_log("MOUSE_BUTTON(%d) RELEASE", MB_LEFT);
+	// 		++button_ev_result;
+	// 		break;
+	// 	}
+	// 	case BUTTON3_RELEASED:
+	// 	case BUTTON3_CLICKED:{
+	// 		push_log("MOUSE_BUTTON(%d) RELEASE", MB_RIGHT);
+	// 		++button_ev_result;
+	// 		break;
+	// 	}
+	// }
+
+	if (button_ev_result == 0){
+		push_log("Unknown bstate registered: %d", event.bstate);
 	}
 }
-/*
-MEVENT event;
-if( getmouse( &event ) == OK ) {
-    rval.type = CATA_INPUT_MOUSE;
-    rval.mouse_x = event.x - VIEW_OFFSET_X;
-    rval.mouse_y = event.y - VIEW_OFFSET_Y;
-    if( event.bstate & BUTTON1_CLICKED ) {
-        rval.add_input( MOUSE_BUTTON_LEFT );
-    } else if( event.bstate & BUTTON3_CLICKED ) {
-        rval.add_input( MOUSE_BUTTON_RIGHT );
-    } else if( event.bstate & REPORT_MOUSE_POSITION ) {
-        rval.add_input( MOUSE_MOVE );
-        if( input_timeout > 0 ) {
-            // Mouse movement seems to clear ncurses timeout
-            set_timeout( input_timeout );
-        }
-    } else {
-        rval.type = CATA_INPUT_ERROR;
-    }
-} else {
-    rval.type = CATA_INPUT_ERROR;
+
+KB_FUNC(mouse_action){
+	// Push events:
+	// mouse_move_event
+	// mouse_button_event [& mouse_button_event]
+	// ^ depends on if it's a click event or not
+
+	// This requires having a timeout that will
+	// process one event per 'frame'
+
+	// next best alternative is to track rising/falling edges
+	// and always process all events each frame
+
+	MEVENT event;
+	if (getmouse(&event) == OK){
+		generate_mouse_events(event);
+	}
 }
-*/
