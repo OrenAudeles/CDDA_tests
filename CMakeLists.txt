@@ -6,6 +6,11 @@ set(LIB_OUTPUT_DIR ${CMAKE_SOURCE_DIR}/lib)
 
 set(LIB_DIR ${CMAKE_SOURCE_DIR}/lib)
 
+set(CMAKE_MODULE_PATH
+	${CMAKE_MODULE_PATH}
+	${CMAKE_SOURCE_DIR}/CMakeModules
+)
+
 add_definitions(
 	
 )

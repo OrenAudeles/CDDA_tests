@@ -8,8 +8,17 @@ set(PROJ_DEBUG ${APPNAME}_debug)
 project(${PROJ})
 project(${PROJ_DEBUG})
 
+message(STATUS "Searching for SDL2")
+find_package(SDL2 REQUIRED)
+
+if (NOT SDL2_FOUND)
+    message(FATAL_ERROR "This project requires SDL2 to be installed to be compiled")
+endif (NOT SDL2_FOUND)
+
+message(STATUS "SDL2 Include Dir: ${SDL2_INCLUDE_DIR}")
+
 include_directories(
-    
+    ${SDL2_INCLUDE_DIR}
 )
 
 set(SOURCES
@@ -22,8 +31,9 @@ set(TEST_SOURCES
 add_executable(${PROJ} ${SOURCES} ${TEST_SOURCES})
 add_executable(${PROJ_DEBUG} ${SOURCES} ${TEST_SOURCES})
 
+message(STATUS "SDL2 Lib Path: ${SDL2_LIBRARY}")
 set(PROJ_LIBS
-   
+   ${SDL2_LIBRARY}
 )
 set(PROJ_DEBUG_LIBS
     ${PROJ_LIBS}
