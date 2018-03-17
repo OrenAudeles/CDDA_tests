@@ -3,6 +3,14 @@
 #include <inttypes.h>
 #include <vector>
 
+#ifndef __FUNCTION_NAME__
+    #ifdef WIN32   //WINDOWS
+        #define __FUNCTION_NAME__   __FUNCTION__  
+    #else          //*NIX
+        #define __FUNCTION_NAME__   __func__ 
+    #endif
+#endif
+
 #define WIDTH 640
 #define HEIGHT 480
 
@@ -42,20 +50,62 @@ void close(){
 }
 
 typedef void (*event_capture_fn)(SDL_Event e);
+typedef void (*command_binding_fn)(void* data);
 
 #define SDL_EV_NAME(name) ev_##name
 #define SDL_EV_FUNC(name) void SDL_EV_NAME(name)(SDL_Event e)
 
+#define COMMAND_NAME(name) cmd_##name
+#define COMMAND_FUNC(name) void COMMAND_NAME(name)(void* data)
+
+
+typedef struct {
+	typeof(SDL_Event::type) type;
+	event_capture_fn fn;
+} event_capture_pair_t;
+
+struct key_bind_t{
+	// Key
+	SDL_Keycode key;
+	// Action
+	// PRESS/RELEASE/REPEAT only
+	uint8_t action;
+	// Modifiers
+	// Can be a U8 since we can test against:
+	// * KMOD_CTRL   (KMOD_LCTRL|KMOD_RCTRL)
+	// * KMOD_SHIFT  (KMOD_LSHIFT|KMOD_RSHIFT)
+	// * KMOD_ALT    (KMOD_LALT|KMOD_RALT)
+	// * KMOD_GUI    (KMOD_LGUI|KMOD_RGUI)
+	// If we don't care about caps/num-lock or mode (AltGr)
+	// then we can squish this down to 4 bits
+	uint16_t mods;
+};
+
+typedef struct {
+	key_bind_t binding;
+	command_binding_fn fn;
+} command_pair_t;
+
 bool quit = false;
-SDL_EV_FUNC(quit){
+COMMAND_FUNC(quit){
 	quit = true;
 }
+SDL_EV_FUNC(quit){
+	COMMAND_NAME(quit)(0);
+}
+
 
 // Filter out repeat events
 // general case: not a repeat event
+// SDL_KEYDOWN
 SDL_EV_FUNC(keydown){
 	if (!e.key.repeat){
 		printf("KeyDown!        : %d <%d>\n", e.key.timestamp, e.key.state);
+
+		// This should map into key-bindings, not calling directly
+		if (e.key.keysym.scancode == SDL_SCANCODE_ESCAPE){
+			SDL_EV_NAME(quit)(e);
+		}
 	}
 	else{
 		printf("KeyDown_Repeat! : %d <%d>\n", e.key.timestamp, e.key.state);
@@ -64,17 +114,32 @@ SDL_EV_FUNC(keydown){
 // 99% of the time, we will not care at all about keyup events.
 // Would be nice if it was like GLFW sending:
 // KEY_DOWN [>> KEY_REPEAT] >> KEY_UP
+// SDL_KEYUP
 SDL_EV_FUNC(keyup){
 	printf("KeyUp!          : %d <%d, %d>\n", e.key.timestamp, e.key.state, e.key.repeat);
 }
+// SDL_DROPFILE
 SDL_EV_FUNC(dropfile){
-	printf("DropFile!       : %d\n", e.key.timestamp);
+	printf("DropFile!       : %d : %s\n", e.common.timestamp, e.drop.file);
+	SDL_free(e.drop.file);
 }
 
-typedef struct {
-	typeof(SDL_Event::type) type;
-	event_capture_fn fn;
-} event_capture_pair_t;
+// SDL_MOUSEMOTION
+SDL_EV_FUNC(mouse_motion){
+	printf("%*.*s: %d\n", -30, 30, __FUNCTION_NAME__, e.common.timestamp);
+}
+// SDL_MOUSEBUTTONDOWN
+SDL_EV_FUNC(mouse_button_down){
+	printf("%*.*s: %d\n", -30, 30, __FUNCTION_NAME__, e.common.timestamp);
+}
+// SDL_MOUSEBUTTONUP
+SDL_EV_FUNC(mouse_button_up){
+	printf("%*.*s: %d\n", -30, 30, __FUNCTION_NAME__, e.common.timestamp);
+}
+// SDL_MOUSEWHEEL
+SDL_EV_FUNC(mouse_wheel){
+	printf("%*.*s: %d\n", -30, 30, __FUNCTION_NAME__, e.common.timestamp);
+}
 
 std::vector<event_capture_pair_t> bound_events;
 
@@ -85,6 +150,11 @@ void init_bound_events(void){
 	BINDEV(SDL_KEYUP, keyup);
 	BINDEV(SDL_DROPFILE, dropfile);
 	BINDEV(SDL_QUIT, quit);
+
+	BINDEV(SDL_MOUSEMOTION, mouse_motion);
+	BINDEV(SDL_MOUSEBUTTONDOWN, mouse_button_down);
+	BINDEV(SDL_MOUSEBUTTONUP, mouse_button_up);
+	BINDEV(SDL_MOUSEWHEEL, mouse_wheel);
 #undef BINDEV
 }
 
