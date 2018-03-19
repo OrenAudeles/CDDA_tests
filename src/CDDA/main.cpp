@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include <queue>
+#include <deque>
 
 // Recursive Shadowcasting FOV
 #define DIM 121
@@ -305,10 +306,10 @@ void cast_view(int x, int y, int r){
 	};
 	set_view(x, y, 255);
 	for (int i = 0; i < 8; ++i){
-		cast_octant_recursive(1, r, 1, 0, matrices[i][0], matrices[i][1], matrices[i][2], matrices[i][3], x, y);
+		//cast_octant_recursive(1, r, 1, 0, matrices[i][0], matrices[i][1], matrices[i][2], matrices[i][3], x, y);
 		//cast_octant_stackful(1, r, 1, 0, matrices[i][0], matrices[i][1], matrices[i][2], matrices[i][3], x, y);
 		//cast_octant_stackful2(1, r, 1, 0, matrices[i][0], matrices[i][1], matrices[i][2], matrices[i][3], x, y);
-		//cast_octant_stackful2_int(1, r, 1, 1, 1, 0, matrices[i][0], matrices[i][1], matrices[i][2], matrices[i][3], x, y);
+		cast_octant_stackful2_int(1, r, 1, 1, 1, 0, matrices[i][0], matrices[i][1], matrices[i][2], matrices[i][3], x, y);
 	}
 }
 
@@ -362,15 +363,18 @@ void building(int x, int y, int r){
 }
 
 int main(const int argc, const char** argv){
-	int ox = DIM/2 - 7, oy = DIM/2, r = DIM/2;
+	int ox = DIM/2, oy = DIM/2, r = DIM/2;
 	
 	clear_view();
 	clear_block();
-	building(ox + 7, oy, r / 4);	
+	//building(ox + 7, oy, r / 4);
+	const int reps = 100000;
 
-	for (int i = 0; i < 1; ++i){
+	printf("Rep Count: %d\n", reps);
+
+	for (int i = 0; i < reps; ++i){
 		cast_view(ox, oy, r);
-		print_view(ox, oy, '@', '#', ' ', '-');
+		//print_view(ox, oy, '@', '#', ' ', '-');
 	}
 
 	return 0;
