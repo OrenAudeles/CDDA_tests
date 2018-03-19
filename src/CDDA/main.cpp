@@ -60,7 +60,7 @@ void cast_octant_recursive(int row, int radius, float high, float low, int xx, i
 			int cy = starty + dx * yx + dy * yy;
 
 			float left = (dx - 0.5f) / (dy + 0.5f);
-			float right= (dy + 0.5f) / (dy - 0.5f);
+			float right= (dx + 0.5f) / (dy - 0.5f);
 
 			if ((high < right) || !in_range(cx, cy)){ continue; }
 			else if (low > left){ break; }
@@ -121,7 +121,7 @@ void cast_octant_stackful(int row, int radius, float high, float low, int xx, in
 				int cy = starty + dx * yx + dy * yy;
 
 				float left = (dx - 0.5f) / (dy + 0.5f);
-				float right= (dy + 0.5f) / (dy - 0.5f);
+				float right= (dx + 0.5f) / (dy - 0.5f);
 
 				if ((frame.high < right) || !in_range(cx, cy)){ continue; }
 				else if (frame.low > left){ break; }
@@ -305,10 +305,10 @@ void cast_view(int x, int y, int r){
 	};
 	set_view(x, y, 255);
 	for (int i = 0; i < 8; ++i){
-		//cast_octant_recursive(1, r, 1, 0, matrices[i][0], matrices[i][1], matrices[i][2], matrices[i][3], x, y);
+		cast_octant_recursive(1, r, 1, 0, matrices[i][0], matrices[i][1], matrices[i][2], matrices[i][3], x, y);
 		//cast_octant_stackful(1, r, 1, 0, matrices[i][0], matrices[i][1], matrices[i][2], matrices[i][3], x, y);
 		//cast_octant_stackful2(1, r, 1, 0, matrices[i][0], matrices[i][1], matrices[i][2], matrices[i][3], x, y);
-		cast_octant_stackful2_int(1, r, 1, 1, 1, 0, matrices[i][0], matrices[i][1], matrices[i][2], matrices[i][3], x, y);
+		//cast_octant_stackful2_int(1, r, 1, 1, 1, 0, matrices[i][0], matrices[i][1], matrices[i][2], matrices[i][3], x, y);
 	}
 }
 
